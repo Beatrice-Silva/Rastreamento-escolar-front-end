@@ -1,0 +1,84 @@
+package com.rastreioescolar.front.controller;
+
+
+import com.Rastreamento_escolar_back_end.back.model.Usuario;
+import com.Rastreamento_escolar_back_end.back.service.UsuarioService;
+import com.rastreioescolar.front.model.UserRequestDTO;
+import com.rastreioescolar.front.service.ApiService;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.List;
+import java.util.Map;
+
+@RestController
+public class AuthController {
+
+    @Autowired
+    private ApiService apiService;
+
+    @GetMapping("/")
+    public String home(HttpSession session, org.springframework.ui.Model model){
+        if(session.getAttribute("token") != null){
+            return "redirect:/dashboard";
+        }
+
+        model.addAttribute("credenciais", new UserRequestDTO());
+        return "index";
+    }
+    @PostMapping("/logar")
+    public String logar(@ModelAttribute UserRequestDTO cred, HttpSession session){
+        try{
+            String token = apiService.login(cred);
+            session.setAttribute("token", token);
+            return "redirect:/dashboard";
+        }catch(Exception e){
+            e.printStackTrace();
+            return "redirect:/login?erro";
+        }
+    }
+
+
+    @GetMapping("/registrar")
+    public String cadastrar(org.springframework.ui.Model model){
+        model.addAttribute("usuario",new Usuario());
+        return "cadastro";
+    }
+
+
+    @PostMapping("/registrar")
+    public String mandarRegistro(@ModelAttribute Usuario usuario, RedirectAttributes redirect){
+        try{
+            apiService.registrar(usuario);
+            redirect.addFlashAttribute("sucesso", "Conta criada! Faça login com " + usuario.getEmail());
+            return "redirect:/login";
+        }catch(Exception e){
+            redirect.addFlashAttribute("erro", "Erro ao cadastrar: " + e.getMessage());
+            return "redirect:/registrar";
+        }
+    }
+
+    @GetMapping("/logout")
+    public String logout(HttpSession session){
+        session.invalidate();
+        return "redirect:/";
+    }
+    
+    @GetMapping("/dashboard")
+    public String dashboard(HttpSession session, Model model){
+        String token = (String) session.getAttribute("token");
+        if(token == null) return "redirect:/login";
+        try{
+            model.addAttribute("counts", apiService.getCounts(token));
+            model.addAttribute("porLoja", apiService.contarPorLoja(token));
+        }catch(Exception e){
+            model.addAttribute("counts", Map.of());
+            model.addAttribute("porLoja", List.of());
+        }
+        return "dashboard";
+    }
+}
